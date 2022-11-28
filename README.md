@@ -1,5 +1,4 @@
 # AWS_CloudFormation_WorkingTime
-
 使用node js將程式佈屬上CloudFormation
 該程式碼在佈署時會自動建立lambda 及DB 欄位
 將AWS Connect功能flow指向該服務即可判斷出上下班時間為何
