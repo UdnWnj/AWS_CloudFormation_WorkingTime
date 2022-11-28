@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: 2010-09-09
+Metadata:
+  'AWS::CloudFormation::Designer':
+    1258d79b-1357-4fae-9782-7d4d4d551d33:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 410
+        'y': 140
+      z: 0
+      embeds: []
+    8c232115-f8a1-4e15-b205-3d806a9ca958:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 700
+        'y': 140
+      z: 0
+      embeds: []
+    509e3f64-fc83-42f8-96bf-5cc7bb816f23:
+      size:
+        width: 60
+        height: 60
+      position:
+        x: 540
+        'y': 140
+      z: 0
+      embeds: []
+      dependson:
+        - 1258d79b-1357-4fae-9782-7d4d4d551d33
+Resources:
+  Lambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Code:
+        ZipFile: "const AWS =require('aws-sdk');\n\tconst docClient = new AWS.DynamoDB.DocumentClient();\n\tfunction getCurrentDT() {\n\t// Date object initialized as per New Zealand timezone. Returns a datetime string\n\tlet nz_date_string = new Date().toLocaleString(\"en-US\", { timeZone: \"Asia/Taipei\" });\n\t// Date object initialized from the above datetime string\n\tlet date_nz = new Date(nz_date_string);\n\t// year as (YYYY) format\n\tlet year = date_nz.getFullYear();\n\t// month as (MM) format\n\tlet month = (\"0\" + (date_nz.getMonth() + 1)).slice(-2);\n\t// date as (DD) format\n\tlet date = (\"0\" + date_nz.getDate()).slice(-2);\n\t// hours as (HH) format\n\tlet hours = (\"0\" + date_nz.getHours()).slice(-2);\n\t// minutes as (mm) format\n\tlet minutes = (\"0\" + date_nz.getMinutes()).slice(-2);\n\t// seconds as (ss) format\n\t//let seconds = (\"0\" + date_nz.getSeconds()).slice(-2);\n\t// date and time as YYYY-MM-DD hh:mm format\n\tlet date_time = year + \"-\" + month + \"-\" + date + \" \" + hours + \":\" + minutes;\n\t//console.log(\"Date and Time in YYYY-MM-DD hh:mm:ss format: \" + date_time);\n\treturn date_time;\n}\nexports.handler = (event, context, callback) => {\n    \n   const scanningParams ={\n       TableName:'Jimmy_ITRI_WorkingTime',\n       Limit:100,\n       FilterExpression: \":workingTimeNow between workingTimeStart and workingTimeEnd\",\n       ExpressionAttributeValues: {\n         \":workingTimeNow\": getCurrentDT()         \n    }\n   };\n  \n   docClient.scan(scanningParams, function(err,data){\n      if(err){\n          callback(err,null);\n      }else{\n          if(data.Items[0] == null){\n              const noHolidayResponse = JSON.stringify({reason: 'isWorkingTime'});\n              callback(null,JSON.parse(noHolidayResponse ));\n          }else{\n              callback(null,data.Items[0]);\n          }\n      }\n  });\n};\n"
+      Description: Lambda(nodejs) to query a WorkingTime in DaynmoDB by Jimmy
+      FunctionName: Jimmy-workingTime-Lambda
+      Role: !GetAtt 
+        - IAMRole
+        - Arn
+      Handler: index.handler
+      MemorySize: 128
+      Runtime: nodejs16.x
+      Timeout: 5
+      DeadLetterConfig: !Ref 'AWS::NoValue'
+      KmsKeyArn: ''
+      TracingConfig:
+        Mode: PassThrough
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 509e3f64-fc83-42f8-96bf-5cc7bb816f23
+    DependsOn:
+      - DynTable
+      - IAMRole
+  DynTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      TableName: Jimmy_ITRI_WorkingTime
+      BillingMode: PROVISIONED
+      AttributeDefinitions:
+        - AttributeName: workingTimeStart
+          AttributeType: S
+      KeySchema:
+        - AttributeName: workingTimeStart
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 1
+        WriteCapacityUnits: 1
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 1258d79b-1357-4fae-9782-7d4d4d551d33
+  IAMRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: inLine-workingTime-jimmy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                Resource:
+                  - !Sub >-
+                    arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource:
+                  - !Sub >-
+                    arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/JimmyITRI-WorkingTime-Lambda:*
+              - Effect: Allow
+                Action:
+                  - 'dynamodb:*'
+                Resource: !GetAtt 
+                  - DynTable
+                  - Arn
+      RoleName: !Join 
+        - ''
+        - - !Ref 'AWS::Region'
+          - '-Jimmy-ITRI-Working-IAMRole'
+    Metadata:
+      'AWS::CloudFormation::Designer':
+        id: 8c232115-f8a1-4e15-b205-3d806a9ca958
